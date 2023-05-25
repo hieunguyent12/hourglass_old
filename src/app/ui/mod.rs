@@ -3,14 +3,14 @@ use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    text::{Span, Spans, Text},
+    text::{Span, Spans},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
     Frame,
 };
 
 use crate::app::{Action, Hourglass, View};
 
-pub fn build_ui<'a, B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
+pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
     let rects = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
