@@ -18,12 +18,13 @@ struct Field {
 pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
     let rects = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(60),
-            Constraint::Percentage(35),
-            Constraint::Percentage(5),
-        ])
+        .constraints([Constraint::Min(0), Constraint::Length(3)])
         .split(f.size());
+
+    let task_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(rects[0]);
 
     let header_cells = ["ID", "Description", "Age"]
         .iter()
@@ -64,7 +65,7 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
             Constraint::Percentage(10),
         ]);
 
-    f.render_stateful_widget(table, rects[0], &mut app.table_state);
+    f.render_stateful_widget(table, task_layout[0], &mut app.table_state);
 
     // display details for task selected
     let details_block = Block::default().borders(Borders::ALL);
@@ -73,7 +74,7 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
         let selected_task = app.tasks.get(i);
 
         if let Some(task) = selected_task {
-            let task_description_block = create_task_detail_header(
+            let task_description_block = render_task_detail(
                 vec![String::from("Name"), String::from("Value")],
                 vec![
                     Field {
@@ -91,7 +92,7 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
                 ],
             )
             .block(details_block);
-            f.render_widget(task_description_block, rects[1]);
+            f.render_widget(task_description_block, task_layout[1]);
         }
     }
 
@@ -107,7 +108,7 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
     }
     let command = Block::default().borders(Borders::ALL).title(title);
 
-    f.render_widget(Paragraph::new(app.input.as_ref()).block(command), rects[2]);
+    f.render_widget(Paragraph::new(app.input.as_ref()).block(command), rects[1]);
 }
 
 fn format_time(time: Duration) -> String {
@@ -137,7 +138,7 @@ fn format_time(time: Duration) -> String {
     format!("{}s", sec)
 }
 
-fn create_task_detail_header<'a>(columns: Vec<String>, fields: Vec<Field>) -> Paragraph<'a> {
+fn render_task_detail<'a>(columns: Vec<String>, fields: Vec<Field>) -> Paragraph<'a> {
     let gap = 2;
     let column_width = 12;
     let border_char = "-";
