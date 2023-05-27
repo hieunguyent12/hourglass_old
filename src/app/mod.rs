@@ -53,7 +53,7 @@ impl Hourglass {
                 },
                 Task {
                     id: 2,
-                    description: String::from("Do the dishes"),
+                    description: String::from("https://www.reddit.com/r/rust"),
                     completed: false,
                     age: Instant::now(),
                 },

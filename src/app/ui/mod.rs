@@ -10,6 +10,11 @@ use tui::{
 
 use crate::app::{Action, Hourglass, View};
 
+struct Field {
+    name: String,
+    value: String,
+}
+
 pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
     let rects = Layout::default()
         .direction(Direction::Vertical)
@@ -68,24 +73,24 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
         let selected_task = app.tasks.get(i);
 
         if let Some(task) = selected_task {
-            let task_description_block = Paragraph::new(vec![
-                Spans::from(Span::styled("Name          Value", Style::default())),
-                Spans::from(Span::styled(
-                    "------------  ------------------",
-                    Style::default(),
-                )),
-                Spans::from(Span::styled(
-                    format!("ID:           {}", task.id),
-                    Style::default().fg(Color::Red),
-                )),
-                Spans::from(Span::styled(
-                    format!("Description:  {}", task.description),
-                    Style::default().fg(Color::Red),
-                )),
-                // TODO: show age of task
-            ])
+            let task_description_block = create_task_detail_header(
+                vec![String::from("Name"), String::from("Value")],
+                vec![
+                    Field {
+                        name: String::from("ID"),
+                        value: task.id.to_string(),
+                    },
+                    Field {
+                        name: String::from("Description"),
+                        value: task.description.clone(),
+                    },
+                    Field {
+                        name: String::from("Age"),
+                        value: format_time(task.age.elapsed()),
+                    },
+                ],
+            )
             .block(details_block);
-
             f.render_widget(task_description_block, rects[1]);
         }
     }
@@ -130,4 +135,64 @@ fn format_time(time: Duration) -> String {
     }
 
     format!("{}s", sec)
+}
+
+fn create_task_detail_header<'a>(columns: Vec<String>, fields: Vec<Field>) -> Paragraph<'a> {
+    let gap = 2;
+    let column_width = 12;
+    let border_char = "-";
+
+    let mut spans: Vec<Spans> = vec![];
+
+    let mut border_text: String = String::new();
+    let mut header_text: String = String::new();
+
+    // ======================= Column name ====================
+    for col in columns.iter() {
+        let header_text_gap = column_width + gap - col.len();
+
+        header_text.push_str(
+            format!(
+                "{name}{yeet:<width$}",
+                width = header_text_gap,
+                name = col,
+                yeet = ""
+            )
+            .as_str(),
+        );
+
+        border_text.push_str(
+            format!(
+                "{a}{b}",
+                a = border_char.repeat(column_width),
+                b = " ".repeat(gap)
+            )
+            .as_str(),
+        );
+    }
+
+    spans.push(Spans::from(Span::styled(header_text, Style::default())));
+    spans.push(Spans::from(Span::styled(border_text, Style::default())));
+
+    // ====================== END COLUMN NAME ======================
+
+    // ====================== COLUMN FIELDS ========================
+
+    for field in fields.iter() {
+        let field_text = format!(
+            "{field}:{space}{value}",
+            field = field.name,
+            space = " ".repeat(column_width + gap - field.name.len() - 1),
+            value = field.value
+        );
+
+        spans.push(Spans::from(Span::styled(
+            field_text,
+            Style::default().fg(Color::Red),
+        )));
+    }
+
+    // ====================== END COLUMN FIELDS ========================
+
+    Paragraph::new(spans.clone())
 }
