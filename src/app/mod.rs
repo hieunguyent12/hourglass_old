@@ -30,6 +30,7 @@ struct Task {
 pub struct Hourglass {
     should_quit: bool,
     input: String,
+    nextId: i32,
 
     view: View,
 
@@ -40,30 +41,33 @@ pub struct Hourglass {
 
 impl Hourglass {
     pub fn new() -> Self {
+        let tasks = vec![
+            Task {
+                id: 1,
+                description: String::from("Take out the trash"),
+                completed: false,
+                age: Instant::now(),
+            },
+            Task {
+                id: 2,
+                description: String::from("https://www.reddit.com/r/rust"),
+                completed: false,
+                age: Instant::now(),
+            },
+            Task {
+                id: 3,
+                description: String::from("Do Laundry"),
+                completed: false,
+                age: Instant::now(),
+            },
+        ];
+
         Self {
             should_quit: false,
             input: String::new(),
             view: View::Task(Action::View),
-            tasks: vec![
-                Task {
-                    id: 1,
-                    description: String::from("Take out the trash"),
-                    completed: false,
-                    age: Instant::now(),
-                },
-                Task {
-                    id: 2,
-                    description: String::from("https://www.reddit.com/r/rust"),
-                    completed: false,
-                    age: Instant::now(),
-                },
-                Task {
-                    id: 3,
-                    description: String::from("Do Laundry"),
-                    completed: false,
-                    age: Instant::now(),
-                },
-            ],
+            nextId: (tasks.len() + 1) as i32,
+            tasks,
             table_state: TableState::default(),
         }
     }
@@ -165,11 +169,13 @@ impl Hourglass {
         self.input = String::new();
 
         self.tasks.push(Task {
-            id: (self.tasks.len() + 1) as i32,
+            id: self.nextId,
             description,
             completed: false,
             age: Instant::now(),
-        })
+        });
+
+        self.nextId += 1;
     }
 
     fn update_task(&mut self) {
