@@ -26,11 +26,17 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(rects[0]);
 
-    let header_cells = ["ID", "Description", "Age"]
-        .iter()
-        .map(|x| Cell::from(*x).style(Style::default()));
+    let header_cells = ["ID", "Description", "Age"].iter().map(|x| {
+        Cell::from(*x).style(
+            Style::default()
+                .add_modifier(Modifier::UNDERLINED)
+                .add_modifier(Modifier::DIM),
+        )
+    });
 
-    let header = Row::new(header_cells).height(1).bottom_margin(1);
+    // for some reason, adding bottom_margin will mess up the underlines
+    let header = Row::new(header_cells).style(Style::default()).height(1);
+    // .bottom_margin(1);
 
     let rows = app.tasks.iter().map(|item| {
         let height = 1;
@@ -51,7 +57,7 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
                 .add_modifier(Modifier::DIM);
         }
 
-        Row::new(cells).height(height).bottom_margin(1).style(style)
+        Row::new(cells).height(height).style(style)
     });
 
     let table = Table::new(rows)
@@ -60,10 +66,11 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
         .highlight_symbol("*")
         .highlight_style(Style::default().add_modifier(Modifier::BOLD))
         .widths(&[
-            Constraint::Percentage(20),
+            Constraint::Percentage(10),
             Constraint::Percentage(70),
             Constraint::Percentage(10),
         ]);
+    // .column_spacing(4);
 
     f.render_stateful_widget(table, task_layout[0], &mut app.table_state);
 
