@@ -30,7 +30,7 @@ struct Task {
 pub struct Hourglass {
     should_quit: bool,
     input: String,
-    nextId: i32,
+    next_id: i32,
 
     view: View,
 
@@ -66,7 +66,7 @@ impl Hourglass {
             should_quit: false,
             input: String::new(),
             view: View::Task(Action::View),
-            nextId: (tasks.len() + 1) as i32,
+            next_id: (tasks.len() + 1) as i32,
             tasks,
             table_state: TableState::default(),
         }
@@ -169,13 +169,13 @@ impl Hourglass {
         self.input = String::new();
 
         self.tasks.push(Task {
-            id: self.nextId,
+            id: self.next_id,
             description,
             completed: false,
             age: Instant::now(),
         });
 
-        self.nextId += 1;
+        self.next_id += 1;
     }
 
     fn update_task(&mut self) {
