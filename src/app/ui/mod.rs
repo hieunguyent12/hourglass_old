@@ -1,3 +1,4 @@
+use chrono::{DateTime, Local, TimeZone, Utc};
 use std::time::Duration;
 use tui::{
     backend::Backend,
@@ -81,6 +82,8 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
         let selected_task = app.tasks.get(i);
 
         if let Some(task) = selected_task {
+            let time_format = "%b %d, %Y %I:%M %p";
+
             let task_description_block = render_task_detail(
                 vec![String::from("Name"), String::from("Value")],
                 vec![
@@ -95,6 +98,14 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
                     Field {
                         name: String::from("Age"),
                         value: format_time(task.age.elapsed()),
+                    },
+                    Field {
+                        name: String::from("Created at"),
+                        value: format!("{}", convert_utc_to_local(task.created_at, time_format)),
+                    },
+                    Field {
+                        name: String::from("Modified at"),
+                        value: format!("{}", convert_utc_to_local(task.modified_at, time_format)),
                     },
                 ],
             )
@@ -143,6 +154,12 @@ fn format_time(time: Duration) -> String {
     }
 
     format!("{}s", sec)
+}
+
+fn convert_utc_to_local(utc_time: DateTime<Utc>, time_format: &str) -> String {
+    let local_time: DateTime<Local> = DateTime::from(utc_time);
+
+    local_time.format(time_format).to_string()
 }
 
 fn render_task_detail<'a>(columns: Vec<String>, fields: Vec<Field>) -> Paragraph<'a> {

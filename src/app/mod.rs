@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent},
     execute,
@@ -25,6 +27,8 @@ struct Task {
     description: String,
     completed: bool,
     age: Instant,
+    created_at: DateTime<Utc>,
+    modified_at: DateTime<Utc>,
 }
 
 pub struct Hourglass {
@@ -41,24 +45,31 @@ pub struct Hourglass {
 
 impl Hourglass {
     pub fn new() -> Self {
+        let time = Utc::now();
         let tasks = vec![
             Task {
                 id: 1,
                 description: String::from("Take out the trash"),
                 completed: false,
                 age: Instant::now(),
+                created_at: time,
+                modified_at: time,
             },
             Task {
                 id: 2,
                 description: String::from("https://www.reddit.com/r/rust"),
                 completed: false,
                 age: Instant::now(),
+                created_at: time,
+                modified_at: time,
             },
             Task {
                 id: 3,
                 description: String::from("Do Laundry"),
                 completed: false,
                 age: Instant::now(),
+                created_at: time,
+                modified_at: time,
             },
         ];
 
@@ -165,6 +176,7 @@ impl Hourglass {
 
     fn add_task(&mut self) {
         let description = self.input.clone();
+        let time = Utc::now();
 
         self.input = String::new();
 
@@ -173,6 +185,8 @@ impl Hourglass {
             description,
             completed: false,
             age: Instant::now(),
+            created_at: time,
+            modified_at: time,
         });
 
         self.next_id += 1;
@@ -182,6 +196,8 @@ impl Hourglass {
         if let Some(i) = self.table_state.selected() {
             if let Some(task) = self.tasks.get_mut(i) {
                 task.description = self.input.clone();
+
+                task.modified_at = Utc::now();
             }
         }
 
