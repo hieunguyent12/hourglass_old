@@ -1,5 +1,4 @@
 use chrono::{DateTime, Local, Utc};
-use std::time::Duration;
 use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout},
@@ -9,7 +8,7 @@ use tui::{
     Frame,
 };
 
-use crate::app::{Action, Hourglass, View};
+use crate::app::{Action, Hourglass, View, TIME_FORMAT};
 
 struct Field {
     name: String,
@@ -39,20 +38,20 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
     let header = Row::new(header_cells).style(Style::default()).height(1);
     // .bottom_margin(1);
 
-    let rows = app.tasks.iter().map(|item| {
+    let rows = app.tasks.iter().map(|task| {
         let height = 1;
 
         let cells = vec![
-            format!("{}", item.id),
-            format!("{}", item.description),
-            format_time(item.age.elapsed()),
+            format!("{}", task.id),
+            format!("{}", task.description),
+            format_time(task.created_at, Utc::now()),
         ]
         .into_iter()
         .map(|c| Cell::from(c));
 
         let mut style = Style::default();
 
-        if item.completed {
+        if task.completed {
             style = style
                 .add_modifier(Modifier::CROSSED_OUT)
                 .add_modifier(Modifier::DIM);
@@ -82,8 +81,6 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
         let selected_task = app.tasks.get(i);
 
         if let Some(task) = selected_task {
-            let time_format = "%b %d, %Y %I:%M %p";
-
             let task_description_block = render_task_detail(
                 vec![String::from("Name"), String::from("Value")],
                 vec![
@@ -97,15 +94,15 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
                     },
                     Field {
                         name: String::from("Age"),
-                        value: format_time(task.age.elapsed()),
+                        value: format_time(task.created_at, Utc::now()),
                     },
                     Field {
                         name: String::from("Created at"),
-                        value: format!("{}", convert_utc_to_local(task.created_at, time_format)),
+                        value: format!("{}", convert_utc_to_local(task.created_at, TIME_FORMAT)),
                     },
                     Field {
                         name: String::from("Modified at"),
-                        value: format!("{}", convert_utc_to_local(task.modified_at, time_format)),
+                        value: format!("{}", convert_utc_to_local(task.modified_at, TIME_FORMAT)),
                     },
                 ],
             )
@@ -129,8 +126,8 @@ pub fn build_ui<B: Backend>(f: &mut Frame<B>, app: &mut Hourglass) {
     f.render_widget(Paragraph::new(app.input.as_ref()).block(command), rects[1]);
 }
 
-fn format_time(time: Duration) -> String {
-    let sec = time.as_secs();
+fn format_time(from_dt: DateTime<Utc>, to_dt: DateTime<Utc>) -> String {
+    let sec = (to_dt - from_dt).num_seconds();
 
     let year = 60 * 60 * 24 * 365;
     let month = 60 * 60 * 24 * 30;
