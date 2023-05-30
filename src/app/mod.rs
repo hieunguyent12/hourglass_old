@@ -18,38 +18,9 @@ mod ui;
 
 use action::Action;
 
-mod approx_instant {
-    use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
-    use std::time::{Instant, SystemTime};
-
-    pub fn serialize<S>(instant: &Instant, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let system_now = SystemTime::now();
-        let instant_now = Instant::now();
-        let approx = system_now - (instant_now - *instant);
-        approx.serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Instant, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let de = SystemTime::deserialize(deserializer)?;
-        let system_now = SystemTime::now();
-        let instant_now = Instant::now();
-        let duration = system_now.duration_since(de).map_err(Error::custom)?;
-        let approx = instant_now - duration;
-        Ok(approx)
-    }
-}
-
 mod date_format_for_serde {
-    use chrono::{DateTime, TimeZone, Utc};
+    use chrono::{DateTime, Utc};
     use serde::{self, Deserialize, Deserializer, Serializer};
-
-    const FORMAT: &'static str = "%Y-%m-%d %H:%M:%S";
 
     // The signature of a serialize_with function must follow the pattern:
     //
@@ -62,8 +33,10 @@ mod date_format_for_serde {
     where
         S: Serializer,
     {
-        let s = format!("{}", date.format(FORMAT));
-        serializer.serialize_str(&s)
+        // let s = format!("{}", date.format(FORMAT));
+
+        // we convert DateTime into a RFC3339 date because it is universal so other languages like Javascript can parse it
+        serializer.serialize_str(&date.to_rfc3339())
     }
 
     // The signature of a deserialize_with function must follow the pattern:
@@ -78,8 +51,9 @@ mod date_format_for_serde {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Utc.datetime_from_str(&s, FORMAT)
-            .map_err(serde::de::Error::custom)
+        s.parse::<DateTime<Utc>>().map_err(serde::de::Error::custom)
+        // Utc.datetime_from_str(&s, FORMAT)
+        //     .map_err(serde::de::Error::custom)
     }
 }
 
@@ -88,17 +62,15 @@ enum View {
     Issues,
 }
 
-const HOURGLASS_EXTENSION: &str = "hourglass";
-const HOURGLASS_FILE_STORAGE_NAME: &str = ".hourglass";
+pub const HOURGLASS_EXTENSION: &str = "hourglass";
+pub const HOURGLASS_FILE_STORAGE_NAME: &str = "tasks.hourglass";
+pub const TIME_FORMAT: &'static str = "%b %d, %Y %I:%M %p";
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 struct Task {
     id: i32,
     description: String,
     completed: bool,
-    // TODO: change this field to use DateTime<Utc>
-    #[serde(with = "approx_instant")]
-    age: Instant,
     #[serde(with = "date_format_for_serde")]
     created_at: DateTime<Utc>,
     #[serde(with = "date_format_for_serde")]
@@ -229,7 +201,6 @@ impl Hourglass {
             id: self.next_id,
             description,
             completed: false,
-            age: Instant::now(),
             created_at: time,
             modified_at: time,
         });
