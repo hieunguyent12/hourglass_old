@@ -1,12 +1,14 @@
-use chrono::DateTime;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use serde::{Deserialize, Serialize};
+use serde_json;
+use std::fs;
 use std::{
-    io::{self},
+    env, io,
     time::{Duration, Instant},
 };
 use tui::{backend::CrosstermBackend, widgets::TableState, Terminal};
@@ -16,18 +18,90 @@ mod ui;
 
 use action::Action;
 
+mod approx_instant {
+    use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
+    use std::time::{Instant, SystemTime};
+
+    pub fn serialize<S>(instant: &Instant, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let system_now = SystemTime::now();
+        let instant_now = Instant::now();
+        let approx = system_now - (instant_now - *instant);
+        approx.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Instant, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let de = SystemTime::deserialize(deserializer)?;
+        let system_now = SystemTime::now();
+        let instant_now = Instant::now();
+        let duration = system_now.duration_since(de).map_err(Error::custom)?;
+        let approx = instant_now - duration;
+        Ok(approx)
+    }
+}
+
+mod date_format_for_serde {
+    use chrono::{DateTime, TimeZone, Utc};
+    use serde::{self, Deserialize, Deserializer, Serializer};
+
+    const FORMAT: &'static str = "%Y-%m-%d %H:%M:%S";
+
+    // The signature of a serialize_with function must follow the pattern:
+    //
+    //    fn serialize<S>(&T, S) -> Result<S::Ok, S::Error>
+    //    where
+    //        S: Serializer
+    //
+    // although it may also be generic over the input types T.
+    pub fn serialize<S>(date: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = format!("{}", date.format(FORMAT));
+        serializer.serialize_str(&s)
+    }
+
+    // The signature of a deserialize_with function must follow the pattern:
+    //
+    //    fn deserialize<'de, D>(D) -> Result<T, D::Error>
+    //    where
+    //        D: Deserializer<'de>
+    //
+    // although it may also be generic over the output types T.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Utc.datetime_from_str(&s, FORMAT)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
 enum View {
     Task(Action),
     Issues,
 }
 
-#[derive(Clone)]
+const HOURGLASS_EXTENSION: &str = "hourglass";
+const HOURGLASS_FILE_STORAGE_NAME: &str = ".hourglass";
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 struct Task {
     id: i32,
     description: String,
     completed: bool,
+    // TODO: change this field to use DateTime<Utc>
+    #[serde(with = "approx_instant")]
     age: Instant,
+    #[serde(with = "date_format_for_serde")]
     created_at: DateTime<Utc>,
+    #[serde(with = "date_format_for_serde")]
     modified_at: DateTime<Utc>,
 }
 
@@ -45,40 +119,12 @@ pub struct Hourglass {
 
 impl Hourglass {
     pub fn new() -> Self {
-        let time = Utc::now();
-        let tasks = vec![
-            Task {
-                id: 1,
-                description: String::from("Take out the trash"),
-                completed: false,
-                age: Instant::now(),
-                created_at: time,
-                modified_at: time,
-            },
-            Task {
-                id: 2,
-                description: String::from("https://www.reddit.com/r/rust"),
-                completed: false,
-                age: Instant::now(),
-                created_at: time,
-                modified_at: time,
-            },
-            Task {
-                id: 3,
-                description: String::from("Do Laundry"),
-                completed: false,
-                age: Instant::now(),
-                created_at: time,
-                modified_at: time,
-            },
-        ];
-
         Self {
             should_quit: false,
             input: String::new(),
             view: View::Task(Action::View),
-            next_id: (tasks.len() + 1) as i32,
-            tasks,
+            next_id: 1,
+            tasks: vec![],
             table_state: TableState::default(),
         }
     }
@@ -103,8 +149,6 @@ impl Hourglass {
     }
 
     pub fn run<B: tui::backend::Backend>(&mut self, terminal: &mut Terminal<B>) -> io::Result<()> {
-        // println!("Test: {:?}", self.items);
-
         let mut last_tick = Instant::now();
         let tick_rate = Duration::from_millis(250);
         // how is rust able to run an infinite loop without crashing?
@@ -152,6 +196,7 @@ impl Hourglass {
 
         self.table_state.select(Some(i))
     }
+
     fn previous(&mut self) {
         let i = match self.table_state.selected() {
             Some(i) => {
@@ -190,6 +235,8 @@ impl Hourglass {
         });
 
         self.next_id += 1;
+
+        self.save_tasks();
     }
 
     fn update_task(&mut self) {
@@ -198,6 +245,8 @@ impl Hourglass {
                 task.description = self.input.clone();
 
                 task.modified_at = Utc::now();
+
+                self.save_tasks();
             }
         }
 
@@ -207,6 +256,7 @@ impl Hourglass {
     fn remove_task(&mut self) {
         if let Some(index) = self.table_state.selected() {
             self.tasks.remove(index);
+            self.save_tasks();
         }
     }
 
@@ -269,5 +319,47 @@ impl Hourglass {
             KeyCode::Up => self.previous(),
             _ => {}
         }
+    }
+
+    pub fn load_tasks(&mut self) -> io::Result<()> {
+        // check if a .hourglass file exist
+        // if it does, load the content
+        // otherwise, create an empty .hourglass file
+
+        let current_dir = env::current_dir()?;
+
+        let paths = fs::read_dir(current_dir).unwrap();
+        let mut file_exists = false;
+
+        for path in paths {
+            let file_path = path.unwrap().path();
+
+            if let Some(os_extension) = file_path.extension() {
+                if let Some(extension) = os_extension.to_str() {
+                    if extension == HOURGLASS_EXTENSION {
+                        file_exists = true;
+
+                        let content =
+                            fs::read_to_string(file_path).expect("Unable to read .hourglass file");
+
+                        let datas: Vec<Task> = serde_json::from_str(&content)?;
+
+                        self.tasks = datas;
+                    }
+                }
+            }
+        }
+
+        if !file_exists {
+            fs::write(HOURGLASS_FILE_STORAGE_NAME, "")?;
+        }
+
+        Ok(())
+    }
+
+    fn save_tasks(&self) {
+        let serialized = serde_json::to_string(&self.tasks).unwrap();
+
+        fs::write(HOURGLASS_FILE_STORAGE_NAME, serialized).expect("Unable to write to file");
     }
 }

@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, TimeZone, Utc};
+use chrono::{DateTime, Local, Utc};
 use std::time::Duration;
 use tui::{
     backend::Backend,
